@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ผู้ช่วยสั่งงาน - กล่องให้อาหาร</title>
+<style>
+  :root {
+    --paper: #F6F2EA;
+    --ink: #2E2A24;
+    --clay: #B5652F;
+    --clay-dark: #96501F;
+    --leaf: #5C7A52;
+    --line: #DDD4C4;
+    --muted: #8A8175;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'Segoe UI', 'Noto Sans Thai', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 440px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #FFFDF9;
+    padding: 32px 28px;
+  }
+  h1 { font-family: Georgia, serif; font-size: 22px; font-weight: 400; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: var(--muted); margin: 0 0 24px; }
+
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .status-row:last-of-type { border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+  .status-row .label { color: var(--muted); font-size: 11px; }
+  .status-row .value.open { color: var(--leaf); }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input[type="text"]:focus { outline: 2px solid var(--clay); outline-offset: -1px; }
+
+  #sendBtn, #micBtn {
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    background: var(--clay);
+    color: #FFFDF9;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #sendBtn:hover, #micBtn:hover { background: var(--clay-dark); }
+  #micBtn.listening { background: var(--leaf); }
+  #sendBtn:disabled, #micBtn:disabled { opacity: 0.4; cursor: default; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 18px;
+    justify-content: flex-end;
+  }
+
+  .transcript {
+    min-height: 20px;
+    text-align: center;
+    font-size: 14px;
+    margin: 14px 0 6px;
+    color: var(--ink);
+  }
+  .reply {
+    min-height: 20px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .log {
+    margin-top: 18px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+  }
+  .log div { padding: 2px 0; }
+
+  .setup {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .setup input {
+    width: 100%;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 6px 8px;
+    margin-top: 4px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+  }
+  .setup button {
+    background: var(--ink);
+    color: #FFFDF9;
+    border: none;
+    padding: 8px;
+    width: 100%;
+    border-radius: 3px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .link-btn {
+    background: none;
+    color: var(--clay);
+    text-decoration: underline;
+    padding: 0;
+    width: auto;
+    font-size: 12px;
+    margin-top: 8px;
+    border: none;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>ผู้ช่วยสั่งงาน</h1>
+  <p class="sub">พิมพ์หรือพูดก็ได้ เช่น "เปิดไฟหน่อย" / "ตอนนี้ระยะห่างเท่าไหร่"</p>
+
+  <div class="status-row">
+    <span class="label">สถานะฝา/ไฟ</span>
+    <span class="value" id="gateStatus">—</span>
+  </div>
+  <div class="status-row">
+    <span class="label">ระยะห่างล่าสุด (จาก sensor)</span>
+    <span class="value" id="foodLevel">— cm</span>
+  </div>
+
+  <div class="setup" id="setupBox">
+    ตั้งค่าครั้งแรก
+    <div>Supabase Project URL</div>
+    <input type="text" id="urlInput" placeholder="https://xxxxxxxxxxxx.supabase.co">
+    <div>Supabase anon public key</div>
+    <input type="text" id="keyInput" placeholder="anon public key">
+    <div>Gemini API key (ใช้เฉพาะตอนพิมพ์/พูดแล้วระบบฟังไม่เข้าใจ)</div>
+    <input type="text" id="geminiInput" placeholder="Gemini API key (ไม่บังคับ)">
+    <button onclick="saveConfig()">บันทึกและเริ่มใช้งาน</button>
+  </div>
+  <button class="link-btn" id="editConfigBtn" onclick="showSetup()" style="display:none;">แก้ไขการตั้งค่า</button>
+
+  <div class="input-row">
+    <input type="text" id="textInput" placeholder="พิมพ์คำสั่งตรงนี้..." />
+    <button id="micBtn" title="พูดคำสั่ง">🎤</button>
+    <button id="sendBtn" title="ส่ง">➤</button>
+  </div>
+  <div class="toggle-row">
+    <label><input type="checkbox" id="ttsToggle" checked> อ่านคำตอบออกเสียง</label>
+  </div>
+
+  <div class="transcript" id="transcript"></div>
+  <div class="reply" id="reply"></div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script src="fuzzyMatch.js"></script>
+<script src="commandParser.js"></script>
+<script>
+  let SUPABASE_URL = localStorage.getItem('feeder_url') || '';
+  let SUPABASE_KEY = localStorage.getItem('feeder_key') || '';
+  let GEMINI_KEY = localStorage.getItem('feeder_gemini_key') || '';
+
+  const setupBox = document.getElementById('setupBox');
+  const editConfigBtn = document.getElementById('editConfigBtn');
+  const textInput = document.getElementById('textInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const micBtn = document.getElementById('micBtn');
+  const ttsToggle = document.getElementById('ttsToggle');
+  const transcriptEl = document.getElementById('transcript');
+  const replyEl = document.getElementById('reply');
+  const logEl = document.getElementById('log');
+  const gateStatusEl = document.getElementById('gateStatus');
+  const foodLevelEl = document.getElementById('foodLevel');
+
+  let commands = [];
+  let currentRowId = null;
+  let currentGateState = false;
+
+  function showSetup() {
+    setupBox.style.display = 'block';
+    editConfigBtn.style.display = 'none';
+  }
+
+  function saveConfig() {
+    const url = document.getElementById('urlInput').value.trim();
+    const key = document.getElementById('keyInput').value.trim();
+    const gem = document.getElementById('geminiInput').value.trim();
+    if (!url || !key) { alert('ต้องกรอก Supabase URL และ Key อย่างน้อยสองช่องแรก'); return; }
+    localStorage.setItem('feeder_url', url);
+    localStorage.setItem('feeder_key', key);
+    localStorage.setItem('feeder_gemini_key', gem);
+    SUPABASE_URL = url;
+    SUPABASE_KEY = key;
+    GEMINI_KEY = gem;
+    setupBox.style.display = 'none';
+    editConfigBtn.style.display = 'block';
+    init();
+  }
+
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    setupBox.style.display = 'none';
+    editConfigBtn.style.display = 'block';
+  }
+
+  function addLog(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    logEl.prepend(div);
+  }
+
+  // ---------- Text-to-Speech (แยกจากการแสดงผลตัวเลขบนหน้าเว็บ) ----------
+  function speak(text) {
+    if (!ttsToggle.checked) return;
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel(); // กันเสียงซ้อนกันถ้าพูดถี่ๆ
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'th-TH';
+    window.speechSynthesis.speak(utter);
+  }
+
+  // ---------- Supabase ----------
+  async function fetchStatus() {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/feeder?select=id,feed_command,food_level&limit=1`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    const data = await res.json();
+    if (data && data.length > 0) {
+      currentRowId = data[0].id;
+      currentGateState = data[0].feed_command;
+      renderStatus(data[0].food_level);
+    }
+  }
+
+  function renderStatus(foodLevel) {
+    gateStatusEl.textContent = currentGateState ? 'เปิดอยู่' : 'ปิดอยู่';
+    gateStatusEl.className = 'value' + (currentGateState ? ' open' : '');
+    foodLevelEl.textContent = (foodLevel ?? '—') + ' cm';
+  }
+
+  async function setGate(open) {
+    await fetch(`${SUPABASE_URL}/rest/v1/feeder?id=eq.${currentRowId}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({ feed_command: open })
+    });
+    currentGateState = open;
+    renderStatus(document.getElementById('foodLevel').textContent);
+  }
+
+  // ---------- คำสั่งที่ fuzzy parser เข้าใจแล้ว (ไม่ต้องพึ่ง LLM) ----------
+  async function runIntent(intent, replyTemplate) {
+    switch (intent) {
+      case 'open_gate':
+        await setGate(true);
+        return replyTemplate;
+      case 'close_gate':
+        await setGate(false);
+        return replyTemplate;
+      case 'check_distance':
+        await fetchStatus();
+        return `ระยะห่างตอนนี้ ${foodLevelEl.textContent}`;
+      case 'check_status':
+        await fetchStatus();
+        return `ตอนนี้${currentGateState ? 'เปิดอยู่' : 'ปิดอยู่'}`;
+      default:
+        return 'ไม่แน่ใจว่าต้องทำอะไร';
+    }
+  }
+
+  // ---------- fallback: ถาม Gemini เมื่อ fuzzy parser ไม่มั่นใจ ----------
+  async function askGemini(text) {
+    if (!GEMINI_KEY) {
+      return 'ฟังไม่เข้าใจคำสั่งนี้ และยังไม่ได้ตั้งค่า Gemini API key ไว้สำรอง';
+    }
+
+    await fetchStatus();
+    const prompt = `คุณคือผู้ช่วยควบคุมกล่องให้อาหารสัตว์เลี้ยง (ไฟ/ฝา และ sensor วัดระยะห่าง)
+สถานะปัจจุบัน: ไฟ/ฝา${currentGateState ? 'เปิดอยู่' : 'ปิดอยู่'}, ระยะห่างจาก sensor = ${foodLevelEl.textContent}
+
+ผู้ใช้พูดหรือพิมพ์ว่า: "${text}"
+
+ตอบกลับเป็น JSON เท่านั้น ห้ามมีข้อความอื่น รูปแบบ:
+{"action": "open" หรือ "close" หรือ "none", "reply": "คำตอบภาษาไทยสั้นๆ"}`;
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      }
+    );
+    const data = await res.json();
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch (e) {
+      return 'ตีความคำสั่งไม่สำเร็จ ลองพูดหรือพิมพ์ใหม่อีกครั้ง';
+    }
+
+    if (parsed.action === 'open') await setGate(true);
+    if (parsed.action === 'close') await setGate(false);
+    return parsed.reply;
+  }
+
+  // ---------- จัดการข้อความ ไม่ว่าจะมาจากพิมพ์หรือพูด ----------
+  async function handleInput(text) {
+    if (!text.trim()) return;
+    transcriptEl.textContent = `"${text}"`;
+    replyEl.textContent = 'กำลังประมวลผล...';
+    sendBtn.disabled = true;
+
+    const match = window.CommandParser.parseCommand(text, commands);
+
+    let replyText;
+    if (match) {
+      addLog(`เข้าใจว่า: ${match.intent} (คะแนน ${match.score.toFixed(2)})`);
+      replyText = await runIntent(match.intent, match.reply);
+    } else {
+      addLog('ไม่มั่นใจ → ส่งให้ Gemini ช่วยตีความ');
+      replyText = await askGemini(text);
+    }
+
+    replyEl.textContent = replyText;
+    speak(replyText); // พูดคำตอบออกมา แยกต่างหากจากตัวเลขบนหน้าเว็บ
+    sendBtn.disabled = false;
+  }
+
+  sendBtn.addEventListener('click', () => {
+    const text = textInput.value;
+    textInput.value = '';
+    handleInput(text);
+  });
+  textInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendBtn.click();
+  });
+
+  // ---------- Speech Recognition (ปุ่มไมค์) ----------
+  let recognition = null;
+  let listening = false;
+
+  function setupSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      micBtn.disabled = true;
+      micBtn.title = 'เบราว์เซอร์นี้ไม่รองรับ speech-to-text (ลองใช้ Chrome)';
+      return;
+    }
+    recognition = new SR();
+    recognition.lang = 'th-TH';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => { listening = true; micBtn.classList.add('listening'); };
+    recognition.onend = () => { listening = false; micBtn.classList.remove('listening'); };
+    recognition.onerror = (e) => addLog('เกิดข้อผิดพลาดตอนฟังเสียง: ' + e.error);
+    recognition.onresult = (e) => handleInput(e.results[0][0].transcript);
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (!recognition || listening) return;
+    recognition.start();
+  });
+
+  // ---------- เริ่มต้นระบบ ----------
+  async function init() {
+    if (!SUPABASE_URL || !SUPABASE_KEY) return;
+    try {
+      commands = await window.CommandParser.loadCommands('commands.json');
+      await fetchStatus();
+      setupSpeechRecognition();
+      textInput.disabled = false;
+      sendBtn.disabled = false;
+    } catch (e) {
+      addLog('เริ่มต้นระบบไม่สำเร็จ: ' + e.message);
+    }
+  }
+
+  init();
+  setInterval(() => { if (SUPABASE_URL && SUPABASE_KEY) fetchStatus(); }, 8000);
+</script>
+
+</body>
+</html>
